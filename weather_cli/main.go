@@ -16,15 +16,15 @@ import (
 func main() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Не удалось загрузить .env файл, переменные окружения могут быть не установлены")
+		log.Println("⚠ Не удалось загрузить .env файл", err)
 	}
 
-	fmt.Print("Чтобы узнать погоду, напишите ваш город: ")
+	fmt.Print("weather_cli | Чтобы узнать погоду, напишите ваш город: ")
 
 	reader := bufio.NewReader(os.Stdin)
 	city, err := reader.ReadString('\n')
 	if err != nil {
-		log.Fatal("Ошибка при чтении ввода:", err)
+		log.Fatal("⚠ Ошибка при чтении ввода:", err)
 	}
 	escapedCity := url.QueryEscape(city)
 
@@ -33,19 +33,19 @@ func main() {
 
 	resp, err := http.Get(apiUrl)
 	if err != nil {
-		log.Fatal("Ошибка при GET-запросе:", err)
+		log.Fatal("⚠ Ошибка при GET-запросе:", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		log.Fatal("Ошибка при чтении Response Body", err)
+		log.Fatal("⚠ Ошибка при чтении Response Body", err)
 	}
 
 	var weather WeatherResponse
 	err = json.Unmarshal(body, &weather)
 	if err != nil {
-		log.Fatalf("Ошибка парсинга JSON: %v\nОтвет сервера: %v", err, string(body))
+		log.Fatalf("⚠ Ошибка парсинга JSON: %v\nОтвет сервера: %v", err, string(body))
 	}
 
 	fmt.Printf("🌍 Погода сейчас в %v, %v\n\n", weather.Location.Name, weather.Location.Country)
