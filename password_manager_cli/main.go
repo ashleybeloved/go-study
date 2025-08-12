@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"math/rand"
 	"os"
@@ -12,12 +13,15 @@ import (
 var passwordDatabase = map[string]string{}
 
 func main() {
+	loadPasswords()
+
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
 		fmt.Println("[1] 🔑 Создать новый пароль")
-		fmt.Println("[2] 📜 Посмотреть все свои пароли")
-		fmt.Println("[3] 🚪 Выход")
+		fmt.Println("[2] ❌ Удалить пароль")
+		fmt.Println("[3] 📜 Посмотреть список паролей")
+		fmt.Println("[4] 🚪 Выход")
 		fmt.Print("\npassword_manager_cli | Выберите опцию: ")
 
 		choose := readInt(reader)
@@ -26,8 +30,10 @@ func main() {
 		case 1:
 			passwordCreate(reader)
 		case 2:
-			passwordList()
+			passwordDel(reader)
 		case 3:
+			passwordList()
+		case 4:
 			bye()
 		default:
 			fmt.Print("\n❌ Неверный выбор. Попробуйте снова.\n\n")
@@ -53,6 +59,8 @@ func passwordCreate(reader *bufio.Reader) {
 
 		passwordDatabase[passwordName] = passwordNew
 		fmt.Println("\n✅ Пароль сохранён!")
+
+		savePasswords()
 	case 2:
 		fmt.Print("\n📏 Введите длину пароля: ")
 		length := readInt(reader)
@@ -70,6 +78,8 @@ func passwordCreate(reader *bufio.Reader) {
 
 		passwordDatabase[passwordName] = passwordNew
 		fmt.Println("\n✅ Пароль сохранён!")
+
+		savePasswords()
 	case 3:
 		return
 	default:
@@ -115,4 +125,65 @@ func readInt(reader *bufio.Reader) int {
 	var num int
 	fmt.Sscanf(line, "%d", &num)
 	return num
+}
+
+const dataFile = "passwords.json"
+
+func loadPasswords() {
+	file, err := os.Open(dataFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			passwordDatabase = map[string]string{}
+			return
+		}
+		fmt.Println("Ошибка чтения файла:", err)
+		return
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&passwordDatabase)
+	if err != nil {
+		fmt.Println("Ошибка парсинга JSON:", err)
+	}
+}
+
+func savePasswords() {
+	file, err := os.Create(dataFile)
+	if err != nil {
+		fmt.Println("Ошибка сохранения файла:", err)
+		return
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(passwordDatabase)
+	if err != nil {
+		fmt.Println("Ошибка кодирования JSON:", err)
+	}
+}
+
+func passwordDel(reader *bufio.Reader) {
+	if len(passwordDatabase) == 0 {
+		fmt.Println("📂 Ваш список паролей пуст.")
+		return
+	}
+
+	fmt.Println("\n📜 Вот список паролей:")
+	for name := range passwordDatabase {
+		fmt.Printf("🔹 %v\n", name)
+	}
+
+	fmt.Print("\n❓ Введите название пароля для удаления: ")
+	name := readLine(reader)
+
+	if _, exists := passwordDatabase[name]; exists {
+		delete(passwordDatabase, name)
+		fmt.Println("✅ Пароль успешно удалён!")
+	} else {
+		fmt.Println("⚠ Пароль с таким названием не найден.")
+	}
+
+	savePasswords()
 }
