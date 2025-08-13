@@ -13,6 +13,7 @@ func main() {
 	if len(os.Args) >= 5 || len(os.Args) < 4 {
 		fmt.Printf("Usage: go run main.go 'FROM' 'TO' 'AMOUNT'\n")
 		fmt.Printf("Example: go run main.go usd eur 100\n\n")
+		fmt.Printf("List: USD, JPY, BGN, CZK, DKK, GBP, HUF, PLN, RON, SEK, CHF, ISK, NOK, TRY, AUD, BRL, CAD, CNY, HKD, IDR, ILS, INR, KRW, MXN, MYR, NZD, PHP, SGD, THB, ZAR")
 
 		os.Exit(0)
 	}
