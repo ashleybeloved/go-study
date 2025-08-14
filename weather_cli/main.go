@@ -28,7 +28,7 @@ func main() {
 	}
 	escapedCity := url.QueryEscape(city)
 
-	API_KEY := os.Getenv("API")
+	API_KEY := os.Getenv("API_WEATHER")
 	apiUrl := fmt.Sprintf("https://api.weatherapi.com/v1/current.json?key=%s&q=%s&aqi=no", API_KEY, escapedCity)
 
 	resp, err := http.Get(apiUrl)
