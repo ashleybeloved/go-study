@@ -37,51 +37,52 @@ func main() {
 		if update.Message != nil { // If we got a message
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
+			text := update.Message.Text
+
 			if update.Message.Text == "/start" {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🌍 Я бот погоды для Telegram. Напиши свой город, чтобы узнать погоду.")
 				bot.Send(msg)
 				continue
 			}
 
-			city := update.Message.Text
-			weatherInfo, err := getWeather(city)
+			if update.Message.Location != nil && text == "" {
+				lat := update.Message.Location.Latitude
+				lon := update.Message.Location.Longitude
 
-			if err != nil {
-				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Ошибка: "+err.Error()))
-				continue
+				weatherInfo, err := getWeatherByLocation(lat, lon)
+
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Ошибка: "+err.Error()))
+					continue
+				}
+
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
+			} else {
+				city := update.Message.Text
+				weatherInfo, err := getWeather(city, text)
+
+				if err != nil {
+					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Ошибка: "+err.Error()))
+					continue
+				}
+
+				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
 			}
-
-			bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
 
 		}
 	}
 }
 
-func getWeather(city string) (string, error) {
-	escapedCity := url.QueryEscape(city)
-
+func getWeatherByLocation(lat float64, lon float64) (string, error) {
 	API_KEY := os.Getenv("API_WEATHER")
 	if API_KEY == "" {
 		return "", fmt.Errorf("API ключ не найден в переменных окружения")
 	}
-	apiUrl := fmt.Sprintf("https://api.weatherapi.com/v1/current.json?key=%v&q=%v&aqi=no", API_KEY, escapedCity)
+	apiUrl := fmt.Sprintf("https://api.weatherapi.com/v1/current.json?key=%v&q=%f,%f&aqi=no", API_KEY, lat, lon)
 
-	resp, err := http.Get(apiUrl)
+	weather, err := getJson(apiUrl)
 	if err != nil {
-		return "", fmt.Errorf("ошибка при GET-запросе: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("ошибка при чтении ответа: %v", err)
-	}
-	fmt.Println(string(body))
-
-	var weather WeatherResponse
-	err = json.Unmarshal(body, &weather)
-	if err != nil {
-		return "", fmt.Errorf("ошибка парсинга JSON: %v", err)
+		return "", err
 	}
 
 	weatherInfo := fmt.Sprintf("🌍 Погода сейчас в %v, %v\n\n🌡 Температура: %v°C\n🤔 Ощущается как: %v°C\n💨 Ветер: %v км/ч\n", weather.Location.Name, weather.Location.Country, weather.Current.TempC, weather.Current.FeelslikeC, weather.Current.WindKPH)
@@ -91,6 +92,51 @@ func getWeather(city string) (string, error) {
 	}
 
 	return weatherInfo, err
+}
+
+func getWeather(city string, text string) (string, error) {
+	escapedCity := url.QueryEscape(city)
+
+	API_KEY := os.Getenv("API_WEATHER")
+	if API_KEY == "" {
+		return "", fmt.Errorf("API ключ не найден в переменных окружения")
+	}
+	apiUrl := fmt.Sprintf("https://api.weatherapi.com/v1/current.json?key=%v&q=%v&aqi=no", API_KEY, escapedCity)
+
+	weather, err := getJson(apiUrl)
+	if err != nil {
+		return "", err
+	}
+
+	if weather.Location.Name == "" && text != "" {
+		return "Такого города не существует, попробуй снова.", err
+	} else {
+		weatherInfo := fmt.Sprintf("🌍 Погода сейчас в %v, %v\n\n🌡 Температура: %v°C\n🤔 Ощущается как: %v°C\n💨 Ветер: %v км/ч\n", weather.Location.Name, weather.Location.Country, weather.Current.TempC, weather.Current.FeelslikeC, weather.Current.WindKPH)
+		return weatherInfo, err
+	}
+
+}
+
+func getJson(apiUrl string) (WeatherResponse, error) {
+	var weather WeatherResponse
+
+	resp, err := http.Get(apiUrl)
+	if err != nil {
+		return weather, fmt.Errorf("ошибка при GET-запросе: %v", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return weather, fmt.Errorf("ошибка при GET-запросе: %v", err)
+	}
+
+	err = json.Unmarshal(body, &weather)
+	if err != nil {
+		err = fmt.Errorf("ошибка парсинга JSON: %v", err)
+	}
+
+	return weather, err
 }
 
 type WeatherResponse struct {
