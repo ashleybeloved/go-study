@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
+	_ "modernc.org/sqlite"
 )
 
 func main() {
@@ -19,12 +21,18 @@ func main() {
 		log.Println("Не удалось загрузить .env файл, переменные окружения могут быть не установлены")
 	}
 
+	db, err := sqliteLoad()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	bot, err := tgbotapi.NewBotAPI(os.Getenv("TELEGRAM_TOKEN"))
 	if err != nil {
 		panic(err)
 	}
 
-	bot.Debug = true
+	bot.Debug = false
 
 	log.Printf("Authorized on account %s", bot.Self.UserName)
 
@@ -34,7 +42,12 @@ func main() {
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
-		if update.Message != nil { // If we got a message
+		if update.Message != nil {
+			err := sqliteSaveUser(db, update.Message.From)
+			if err != nil {
+				panic(err)
+			}
+
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
 			text := update.Message.Text
@@ -42,6 +55,7 @@ func main() {
 			if update.Message.Text == "/start" {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🌍 Я бот погоды для Telegram. Напиши свой город, чтобы узнать погоду.")
 				bot.Send(msg)
+				log.Printf("[ashley_weather_bot] 🌍 Я бот погоды для Telegram. Напиши свой город, чтобы узнать погоду.")
 				continue
 			}
 
@@ -57,6 +71,7 @@ func main() {
 				}
 
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
+				log.Printf("[ashley_weather_bot] %v", weatherInfo)
 			} else {
 				city := update.Message.Text
 				weatherInfo, err := getWeather(city, text)
@@ -67,6 +82,7 @@ func main() {
 				}
 
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
+				log.Printf("[ashley_weather_bot] %v", weatherInfo)
 			}
 
 		}
@@ -137,6 +153,39 @@ func getJson(apiUrl string) (WeatherResponse, error) {
 	}
 
 	return weather, err
+}
+
+func sqliteLoad() (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "data/telegram_bot.db")
+	if err != nil {
+		return nil, err
+	}
+
+	createTableSQL := `
+	CREATE TABLE IF NOT EXISTS users (
+		user_id INTEGER PRIMARY KEY,
+		username TEXT,
+		first_name TEXT NOT NULL,
+		last_name TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	);
+	`
+
+	_, err = db.Exec(createTableSQL)
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+
+	log.Println("Подключение к БД успешно.")
+	return db, nil
+}
+
+func sqliteSaveUser(db *sql.DB, user *tgbotapi.User) error {
+	query := `INSERT OR IGNORE INTO users(user_id, username, first_name, last_name) VALUES (?, ?, ?, ?)`
+
+	_, err := db.Exec(query, user.ID, user.UserName, user.FirstName, user.LastName)
+	return err
 }
 
 type WeatherResponse struct {
