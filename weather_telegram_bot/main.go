@@ -156,7 +156,7 @@ func getJson(apiUrl string) (WeatherResponse, error) {
 }
 
 func sqliteLoad() (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "data/telegram_bot.db")
+	db, err := sql.Open("sqlite", "telegram_bot.db")
 	if err != nil {
 		return nil, err
 	}
