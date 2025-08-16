@@ -1,10 +1,10 @@
 package main
 
 import (
-	"io"
+	"fmt"
 	"log"
-	"net/http"
 	"os"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
@@ -30,71 +30,43 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
+	for len(updates) > 0 {
+		<-updates
+	}
+
 	for update := range updates {
 		if update.Message != nil {
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
-
-			switch update.Message.Text {
-			case "/cat":
-				giveCat(bot, update)
-				log.Printf("[%v] `Debug: Random cat sended.`", bot.Self.UserName)
-				continue
-			case "/gif":
-				giveCatGif(bot, update)
-				log.Printf("[%v] `Debug: Random cat gif sended.`", bot.Self.UserName)
-				continue
-			default:
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🐈 Random /cat image and /gif")
-				bot.Send(msg)
-				log.Printf("[%v] 🐈 Random /cat image and /gif", bot.Self.UserName)
-				continue
-			}
+			go handleUpdate(bot, update)
 		}
 	}
 }
 
-func giveCat(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	url := "https://cataas.com/cat"
-
-	resp, err := http.Get(url)
-	if err != nil {
-		log.Println("Ошибка при скачивании:", err)
-		return
+func handleUpdate(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	switch update.Message.Text {
+	case "/cat":
+		giveCat(bot, update)
+		log.Printf("[%v] `Debug: Random cat sended.`", bot.Self.UserName)
+	case "/gif":
+		giveCatGif(bot, update)
+		log.Printf("[%v] `Debug: Random cat gif sended.`", bot.Self.UserName)
+	default:
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🐈 Random /cat image and /gif")
+		bot.Send(msg)
+		log.Printf("[%v] 🐈 Random /cat image and /gif", bot.Self.UserName)
 	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("Ошибка при чтении данных:", err)
-		return
-	}
-
-	photo := tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FileBytes{
-		Name:  "cat.jpg",
-		Bytes: data,
-	})
-	bot.Send(photo)
 }
 
 func giveCatGif(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	url := "https://cataas.com/cat/gif"
+	url := fmt.Sprintf("https://cataas.com/cat/gif?%d", time.Now().UnixNano()) // Добавил рандом параметр, чтобы телеграм не кэшировал страницу и не отправлял один и тот же файл.
 
-	resp, err := http.Get(url)
-	if err != nil {
-		log.Println("Ошибка при скачивании:", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	data, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Println("Ошибка при чтении данных:", err)
-		return
-	}
-
-	gif := tgbotapi.NewAnimation(update.Message.Chat.ID, tgbotapi.FileBytes{
-		Name:  "cat.gif",
-		Bytes: data,
-	})
+	gif := tgbotapi.NewAnimation(update.Message.Chat.ID, tgbotapi.FileURL(url))
 	bot.Send(gif)
+}
+
+func giveCat(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
+	url := fmt.Sprintf("https://cataas.com/cat?%d", time.Now().UnixNano())
+
+	photo := tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FileURL(url))
+	bot.Send(photo)
 }
