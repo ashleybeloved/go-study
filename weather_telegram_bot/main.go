@@ -34,7 +34,7 @@ func main() {
 
 	bot.Debug = false
 
-	log.Printf("Authorized on account %s", bot.Self.UserName)
+	log.Printf("Авторизован на: [%v]", bot.Self.UserName)
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -43,6 +43,7 @@ func main() {
 
 	for update := range updates {
 		if update.Message != nil {
+
 			err := sqliteSaveUser(db, update.Message.From)
 			if err != nil {
 				panic(err)
@@ -50,16 +51,14 @@ func main() {
 
 			log.Printf("[%s] %s", update.Message.From.UserName, update.Message.Text)
 
-			text := update.Message.Text
-
 			if update.Message.Text == "/start" {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "🌍 Я бот погоды для Telegram. Напиши свой город, чтобы узнать погоду.")
 				bot.Send(msg)
-				log.Printf("[ashley_weather_bot] 🌍 Я бот погоды для Telegram. Напиши свой город, чтобы узнать погоду.")
+				log.Printf("[%v] 🌍 Я бот погоды для Telegram. Напиши свой город, чтобы узнать погоду.", bot.Self.UserName)
 				continue
 			}
 
-			if update.Message.Location != nil && text == "" {
+			if update.Message.Location != nil {
 				lat := update.Message.Location.Latitude
 				lon := update.Message.Location.Longitude
 
@@ -71,10 +70,10 @@ func main() {
 				}
 
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
-				log.Printf("[ashley_weather_bot] %v", weatherInfo)
+				log.Printf("[%v] %v", bot.Self.UserName, weatherInfo)
 			} else {
 				city := update.Message.Text
-				weatherInfo, err := getWeather(city, text)
+				weatherInfo, err := getWeather(city)
 
 				if err != nil {
 					bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, "Ошибка: "+err.Error()))
@@ -82,7 +81,7 @@ func main() {
 				}
 
 				bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, weatherInfo))
-				log.Printf("[ashley_weather_bot] %v", weatherInfo)
+				log.Printf("[%v] %v", bot.Self.UserName, weatherInfo)
 			}
 
 		}
@@ -101,7 +100,7 @@ func getWeatherByLocation(lat float64, lon float64) (string, error) {
 		return "", err
 	}
 
-	weatherInfo := fmt.Sprintf("🌍 Погода сейчас в %v, %v\n\n🌡 Температура: %v°C\n🤔 Ощущается как: %v°C\n💨 Ветер: %v км/ч\n", weather.Location.Name, weather.Location.Country, weather.Current.TempC, weather.Current.FeelslikeC, weather.Current.WindKPH)
+	weatherInfo := fmt.Sprintf("🌍 Погода сейчас в %v, %v\n\n🕖 Локальное время: %v\n🌡 Температура: %v°C\n🤔 Ощущается как: %v°C\n💨 Ветер: %v км/ч\n", weather.Location.Name, weather.Location.Country, weather.Location.Localtime, weather.Current.TempC, weather.Current.FeelslikeC, weather.Current.WindKPH)
 
 	if weather.Location.Name == "" {
 		weatherInfo = "Такого города не существует, попробуй снова."
@@ -110,7 +109,7 @@ func getWeatherByLocation(lat float64, lon float64) (string, error) {
 	return weatherInfo, err
 }
 
-func getWeather(city string, text string) (string, error) {
+func getWeather(city string) (string, error) {
 	escapedCity := url.QueryEscape(city)
 
 	API_KEY := os.Getenv("API_WEATHER")
@@ -124,10 +123,10 @@ func getWeather(city string, text string) (string, error) {
 		return "", err
 	}
 
-	if weather.Location.Name == "" && text != "" {
+	if weather.Location.Name == "" {
 		return "Такого города не существует, попробуй снова.", err
 	} else {
-		weatherInfo := fmt.Sprintf("🌍 Погода сейчас в %v, %v\n\n🌡 Температура: %v°C\n🤔 Ощущается как: %v°C\n💨 Ветер: %v км/ч\n", weather.Location.Name, weather.Location.Country, weather.Current.TempC, weather.Current.FeelslikeC, weather.Current.WindKPH)
+		weatherInfo := fmt.Sprintf("🌍 Погода сейчас в %v, %v\n\n🕖 Локальное время: %v\n🌡 Температура: %v°C\n🤔 Ощущается как: %v°C\n💨 Ветер: %v км/ч\n", weather.Location.Name, weather.Location.Country, weather.Location.Localtime, weather.Current.TempC, weather.Current.FeelslikeC, weather.Current.WindKPH)
 		return weatherInfo, err
 	}
 
@@ -190,8 +189,9 @@ func sqliteSaveUser(db *sql.DB, user *tgbotapi.User) error {
 
 type WeatherResponse struct {
 	Location struct {
-		Name    string `json:"name"`
-		Country string `json:"country"`
+		Name      string `json:"name"`
+		Country   string `json:"country"`
+		Localtime string `json:"localtime"`
 	} `json:"location"`
 	Current struct {
 		TempC      float64 `json:"temp_c"`
