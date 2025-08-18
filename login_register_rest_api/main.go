@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -40,6 +41,9 @@ func main() {
 			return
 		}
 
+		req.Password = strings.TrimSpace(req.Password)
+		req.Username = strings.ToLower(strings.TrimSpace(req.Username))
+
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			http.Error(w, "Ошибка при хэшировании пароля", http.StatusInternalServerError)
@@ -72,6 +76,9 @@ func main() {
 			http.Error(w, "Неверный JSON", http.StatusBadRequest)
 			return
 		}
+
+		req.Password = strings.TrimSpace(req.Password)
+		req.Username = strings.ToLower(strings.TrimSpace(req.Username))
 
 		var storedPassword string
 		query := `SELECT password FROM users WHERE username = ?`
