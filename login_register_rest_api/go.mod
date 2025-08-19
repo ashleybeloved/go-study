@@ -1,10 +1,9 @@
-module calc_rest_api
+module rest_api
 
 go 1.24.6
 
 require (
 	github.com/go-chi/chi/v5 v5.2.2
-	golang.org/x/crypto v0.41.0
 	modernc.org/sqlite v1.38.2
 )
 
