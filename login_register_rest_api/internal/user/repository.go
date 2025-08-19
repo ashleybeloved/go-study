@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"rest_api/internal/db"
+	"rest_api/pkg/hash"
 
 	_ "modernc.org/sqlite"
 )
@@ -27,15 +28,16 @@ func RegUserInDB(req RegistrationRequest) error {
 func CheckUserInDB(req LoginRequest) error {
 	query := `SELECT password FROM users WHERE username = ?`
 
-	var storedPassword string
-	err := db.DB.QueryRow(query, req.Username).Scan(&storedPassword)
+	var storedHash string
+	err := db.DB.QueryRow(query, req.Username).Scan(&storedHash)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("пользователь не найден")
 	} else if err != nil {
 		return fmt.Errorf("ошибка запроса к БД")
 	}
 
-	if storedPassword != req.Password {
+	err = hash.CheckPassword(storedHash, req.Password)
+	if err != nil {
 		return fmt.Errorf("неверный пароль")
 	}
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"rest_api/pkg/hash"
 )
 
 func RegisterUser(req RegistrationRequest) error {
@@ -15,6 +17,14 @@ func RegisterUser(req RegistrationRequest) error {
 	}
 
 	req.Password = strings.TrimSpace(req.Password)
+
+	hashPassword, err := hash.HashPassword(req.Password)
+	if err != nil {
+		return fmt.Errorf("ошибка при хэшировании пароля")
+	}
+
+	req.Password = hashPassword
+
 	req.Username = strings.ToLower(strings.TrimSpace(req.Username))
 
 	regexUsername := regexp.MustCompile(`^[a-z0-9_]+$`)
@@ -32,6 +42,7 @@ func RegisterUser(req RegistrationRequest) error {
 
 func LoginUser(req LoginRequest) error {
 	req.Password = strings.TrimSpace(req.Password)
+
 	req.Username = strings.ToLower(strings.TrimSpace(req.Username))
 
 	regexUsername := regexp.MustCompile(`^[a-z0-9_]+$`)
