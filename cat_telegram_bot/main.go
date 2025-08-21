@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
@@ -122,9 +123,16 @@ func giveCatGif(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
 }
 
 func giveCat(bot *tgbotapi.BotAPI, update tgbotapi.Update) {
-	url := fmt.Sprintf("https://cataas.com/cat?%d", time.Now().UnixNano())
+	var photo tgbotapi.PhotoConfig
 
-	photo := tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FileURL(url))
+	if rand.Intn(1000) < 1 { // 0.1% шанс
+		photo = tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FilePath("dog.jpg"))
+		photo.Caption = "you find @fuckcensor (dev) dog"
+	} else {
+		url := fmt.Sprintf("https://cataas.com/cat?%d", time.Now().UnixNano())
+		photo = tgbotapi.NewPhoto(update.Message.Chat.ID, tgbotapi.FileURL(url))
+	}
+
 	bot.Send(photo)
 }
 
@@ -175,7 +183,14 @@ func sendWelcomeMessage(bot *tgbotapi.BotAPI, update tgbotapi.Update, User tgbot
 }
 
 func sqliteLoad() (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "cat_users.db")
+	if _, err := os.Stat("/data"); os.IsNotExist(err) {
+		err := os.Mkdir("/data", 0755)
+		if err != nil {
+			return nil, fmt.Errorf("не удалось создать папку data: %v", err)
+		}
+	}
+
+	db, err := sql.Open("sqlite", "/data/cat_users.db")
 	if err != nil {
 		return nil, err
 	}
@@ -198,10 +213,10 @@ func sqliteLoad() (*sql.DB, error) {
 
 	createChatsTableSQL := `
 	CREATE TABLE IF NOT EXISTS chats (
-    chat_id INTEGER PRIMARY KEY,
-    title TEXT,
-    type TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		chat_id INTEGER PRIMARY KEY,
+		title TEXT,
+		type TEXT NOT NULL,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);
 	`
 
@@ -212,11 +227,11 @@ func sqliteLoad() (*sql.DB, error) {
 	}
 
 	createLogsTableSQL := `CREATE TABLE IF NOT EXISTS logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    chat_id INTEGER,
-    command TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		user_id INTEGER,
+		chat_id INTEGER,
+		command TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	_, err = db.Exec(createLogsTableSQL)
@@ -225,7 +240,7 @@ func sqliteLoad() (*sql.DB, error) {
 		return nil, err
 	}
 
-	log.Println("Подключение к БД успешно.")
+	log.Println("Подключение к БД успешно (папка data).")
 	return db, nil
 }
 
