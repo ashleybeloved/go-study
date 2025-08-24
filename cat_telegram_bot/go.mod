@@ -1,4 +1,4 @@
-module cat_telegram_bot
+module cat
 
 go 1.24.6
 
