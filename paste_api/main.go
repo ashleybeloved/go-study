@@ -1,13 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
 	"time"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 type Paste struct {
@@ -28,17 +33,25 @@ type reqFindPaste struct {
 	Password string `json:"password"`
 }
 
-var pastes []Paste
-
 func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
+	if err := godotenv.Load(); err != nil {
+		log.Println("File .env not found")
+	}
+
+	if err := os.MkdirAll("pastes", 0755); err != nil {
+		log.Print("Failed to create folder")
+	}
+
+	port := os.Getenv("PORT")
+
 	r.POST("/", newPaste)
 	r.POST("/:id", findPaste)
 
-	log.Println("Server running on :8080")
-	r.Run(":8080")
+	log.Println("Server running on " + port)
+	r.Run(port)
 }
 
 func newPaste(c *gin.Context) {
@@ -58,7 +71,14 @@ func newPaste(c *gin.Context) {
 		return
 	}
 
-	id, err := gonanoid.New(10)
+	digitsStr := os.Getenv("DIGITS")
+	digits, err := strconv.Atoi(digitsStr)
+	if err != nil {
+		log.Println("Failed to convert string to int, set default to 10")
+		digits = 10
+	}
+
+	id, err := gonanoid.New(digits)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate ID"})
 		return
@@ -72,7 +92,20 @@ func newPaste(c *gin.Context) {
 		CreatedAt: time.Now(),
 	}
 
-	pastes = append(pastes, paste)
+	filename := filepath.Join("pastes", id+".json")
+	file, err := os.Create(filename)
+	if err != nil {
+		log.Printf("Failed to create file %s: %v", filename, err)
+		c.JSON(http.StatusInternalServerError, "Failed to create paste")
+		return
+	}
+	defer file.Close()
+
+	if err := json.NewEncoder(file).Encode(paste); err != nil {
+		log.Printf("Failed to write JSON to file %s: %v", filename, err)
+		c.JSON(http.StatusInternalServerError, "Failed to encode paste")
+		return
+	}
 
 	c.JSON(http.StatusAccepted, paste)
 }
@@ -86,17 +119,31 @@ func findPaste(c *gin.Context) {
 
 	id := c.Request.URL.Path[1:]
 
-	for _, paste := range pastes {
-		if paste.ID == id {
-			if paste.Password == req.Password {
-				c.JSON(http.StatusAccepted, paste)
-				return
-			} else {
-				c.JSON(http.StatusForbidden, gin.H{"error": "Invalid Password"})
-				return
-			}
-		}
+	filename := filepath.Join("pastes", id+".json")
+	if _, err := os.Stat(filename); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Page Not Found"})
+		return
 	}
 
-	c.JSON(http.StatusNotFound, gin.H{"error": "Page Not Found"})
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Printf("Failed to open file %s: %v", filename, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to read paste"})
+		return
+	}
+	defer file.Close()
+
+	var paste Paste
+	if err := json.NewDecoder(file).Decode(&paste); err != nil {
+		log.Printf("Failed to decode JSON from %s: %v", filename, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Corrupted paste data"})
+		return
+	}
+
+	if req.Password == paste.Password {
+		c.JSON(http.StatusAccepted, paste)
+		return
+	} else {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid password"})
+	}
 }
