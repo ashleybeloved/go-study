@@ -20,7 +20,7 @@ type Paste struct {
 	Title     string    `json:"title"`
 	Content   string    `json:"content"`
 	Password  string    `json:"password"`
-	CreatedAt time.Time `json:"createdAt"`
+	CreatedAt time.Time `jsgon:"createdAt"`
 }
 
 type reqNewPaste struct {
@@ -37,7 +37,7 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.Default()
 
-	if err := godotenv.Load(); err != nil {
+	if err := godotenv.Load(".config"); err != nil {
 		log.Println("File .env not found")
 	}
 
